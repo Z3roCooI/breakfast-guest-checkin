@@ -81,7 +81,7 @@ if admin_mode and expected_rooms:
 
     # ✅ Manual Refresh Button
     if st.button("🔄 Refresh View"):
-        st.experimental_rerun()
+        st.rerun()
 
     checked = st.session_state.checked_in
     remaining = expected_rooms - checked
