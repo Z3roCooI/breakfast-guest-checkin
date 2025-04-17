@@ -103,7 +103,19 @@ if expected_rooms:
             st.error("Room not found on today’s list. Please speak to staff.")
 else:
     st.warning("Room list not uploaded yet. Please contact staff.")
+# 🔁 Optional manual + auto refresh for admin
+if admin_mode:
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        if st.button("🔄 Refresh Now"):
+            st.rerun()
+    with col2:
+        auto_refresh = st.checkbox("Auto-refresh every 10 seconds")
 
+    if auto_refresh:
+        import time
+        time.sleep(10)
+        st.rerun()
 # 🧾 Admin Overview
 if admin_mode and expected_rooms:
     st.divider()
