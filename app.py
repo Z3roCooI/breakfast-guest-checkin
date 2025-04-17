@@ -111,7 +111,7 @@ unexpected_rooms = get_unexpected_rooms()
 
 # Guest Check-In
 if expected_rooms or manual_rooms:
-    st.subheader("🎫 Enter your room number")
+    st.subheader("Please enter your room number")
     room_input = st.number_input(
         label="Enter your room number:",
         min_value=100,
