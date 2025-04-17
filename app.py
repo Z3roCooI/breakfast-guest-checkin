@@ -21,6 +21,14 @@ st.markdown("""
         .room-box.pending {color: gray;}
         .room-box.manual {color: blue;}
         .room-box.unexpected {color: red;}
+    a {
+        pointer-events: none !important;
+        text-decoration: none !important;
+        color: inherit !important;
+    }
+    header[data-testid="stHeader"] {
+        pointer-events: none;
+    }
     </style>
 """, unsafe_allow_html=True)
 
