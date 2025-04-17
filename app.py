@@ -1,8 +1,12 @@
 import streamlit as st
+import requests
 
-st.set_page_config(page_title="Breakfast Check-In", page_icon="🥐", layout="centered")
+st.set_page_config(page_title="Breakfast Check-In", page_icon="🥐", layout="wide")
 
-# Style
+# Firebase Config
+FIREBASE_URL = "https://breakfast-50e37-default-rtdb.europe-west1.firebasedatabase.app"
+
+# Title & styles
 st.markdown("""
     <h1 style='text-align: center;'>🍳 Breakfast Check-In</h1>
     <style>
@@ -15,7 +19,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Admin PIN
+# Admin toggle via ?admin=1
 ADMIN_PIN = "1234"
 query_params = st.query_params
 admin_requested = query_params.get("admin", ["0"])[0] == "1"
@@ -30,82 +34,12 @@ if admin_requested:
         elif entered_pin:
             st.error("Incorrect PIN")
 
-# Persistent room list
-@st.cache_resource
+# Load expected rooms from Firebase
+@st.cache_data(ttl=5)
 def get_expected_rooms():
-    return set()
-
-expected_rooms = get_expected_rooms()
-
-# Admin: Upload room list
-if admin_mode:
-    uploaded_file = st.file_uploader("Upload expected_rooms.txt", type="txt")
-    if uploaded_file:
-        room_list = set(
-            line.strip() for line in uploaded_file.getvalue().decode("utf-8").splitlines()
-            if line.strip().isdigit() and 100 <= int(line.strip()) <= 639
-        )
-        expected_rooms.clear()
-        expected_rooms.update(room_list)
-        st.success(f"{len(expected_rooms)} rooms loaded.")
-
-# Guest check-ins
-if "checked_in" not in st.session_state:
-    st.session_state.checked_in = set()
-
-# Guest check-in UI
-if expected_rooms:
-    st.subheader("🎫 Guest Check-In")
-    room_input = st.text_input("Enter your room number:", placeholder="e.g. 215")
-
-    if st.button("✅ Check In"):
-        room = room_input.strip()
-        if not room.isdigit():
-            st.error("Please enter a valid room number.")
-        elif int(room) < 100 or int(room) > 639:
-            st.error("Room number out of range.")
-        elif room in st.session_state.checked_in:
-            st.info(f"Room {room} is already checked in. Enjoy your breakfast! 🥐")
-        elif room in expected_rooms:
-            st.session_state.checked_in.add(room)
-            st.success(f"✅ Room {room} checked in. Bon appétit!")
-        else:
-            st.error("Room not found on today’s list. Please speak to staff.")
-else:
-    st.warning("Room list not uploaded yet. Please contact staff.")
-
-# 🧾 Admin Panel
-if admin_mode and expected_rooms:
-    st.divider()
-    st.subheader("📊 Live Breakfast Overview")
-
-    # ✅ Manual Refresh Button
-    if st.button("🔄 Refresh View"):
-        st.rerun()
-
-    checked = st.session_state.checked_in
-    remaining = expected_rooms - checked
-
-    st.markdown(f"""
-    ✅ **Checked-in:** {len(checked)} / {len(expected_rooms)}  
-    🔲 **Remaining:** {len(remaining)}  
-    """)
-
-    # Group by floor
-    st.markdown("### 📋 Room Status by Floor")
-    floors = {
-        "100–199": [r for r in expected_rooms if 100 <= int(r) <= 199],
-        "200–299": [r for r in expected_rooms if 200 <= int(r) <= 299],
-        "300–399": [r for r in expected_rooms if 300 <= int(r) <= 399],
-        "400–499": [r for r in expected_rooms if 400 <= int(r) <= 499],
-        "500–599": [r for r in expected_rooms if 500 <= int(r) <= 599],
-        "600–639": [r for r in expected_rooms if 600 <= int(r) <= 639],
-    }
-
-    for label, rooms in floors.items():
-        st.markdown(f"**🧭 {label}**")
-        for room in sorted(rooms, key=int):
-            if room in checked:
-                st.markdown(f"<div class='room-box checked'>✅ Room {room}</div>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"<div class='room-box pending'>🔲 Room {room}</div>", unsafe_allow_html=True)
+    try:
+        response = requests.get(f"{FIREBASE_URL}/rooms.json")
+        if response.status_code == 200 and response.json():
+            return set(response.json())
+        return set()
+    except Exception as e:
