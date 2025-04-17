@@ -1,10 +1,8 @@
 import streamlit as st
-from streamlit_extras.st_autorefresh import st_autorefresh
 
-# Auto-refresh every 5 seconds on admin view
 st.set_page_config(page_title="Breakfast Check-In", page_icon="🥐", layout="centered")
 
-# Style for UI
+# Style
 st.markdown("""
     <h1 style='text-align: center;'>🍳 Breakfast Check-In</h1>
     <style>
@@ -23,10 +21,7 @@ query_params = st.query_params
 admin_requested = query_params.get("admin", ["0"])[0] == "1"
 admin_mode = False
 
-# Rerun admin view every 5s
 if admin_requested:
-    st_autorefresh(interval=5000, limit=None, key="admin_autorefresh")
-
     with st.expander("🔐 Admin Access"):
         entered_pin = st.text_input("Enter admin PIN:", type="password")
         if entered_pin == ADMIN_PIN:
@@ -83,6 +78,10 @@ else:
 if admin_mode and expected_rooms:
     st.divider()
     st.subheader("📊 Live Breakfast Overview")
+
+    # ✅ Manual Refresh Button
+    if st.button("🔄 Refresh View"):
+        st.experimental_rerun()
 
     checked = st.session_state.checked_in
     remaining = expected_rooms - checked
