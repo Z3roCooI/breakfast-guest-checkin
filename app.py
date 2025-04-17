@@ -17,7 +17,7 @@ ADMIN_PIN = "1234"
 admin_mode = False
 
 # This singleton stores uploaded room list
-@st.experimental_singleton
+@st.cache_resource
 def get_expected_rooms():
     return set()
 
