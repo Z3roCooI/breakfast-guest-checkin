@@ -6,7 +6,7 @@ st.set_page_config(page_title="Breakfast Check-In", page_icon="🥐", layout="wi
 # Firebase Realtime DB URL
 FIREBASE_URL = "https://breakfast-50e37-default-rtdb.europe-west1.firebasedatabase.app"
 
-# Title & styles
+# Style and layout
 st.markdown("""
     <h1 style='text-align: center;'>🍳 Breakfast Check-In</h1>
     <style>
@@ -19,7 +19,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Admin access via ?admin=1
+# Admin panel toggle
 ADMIN_PIN = "1234"
 query_params = st.query_params
 admin_requested = query_params.get("admin", ["0"])[0] == "1"
@@ -34,7 +34,7 @@ if admin_requested:
         elif entered_pin:
             st.error("Incorrect PIN")
 
-# Load expected rooms from Firebase
+# 🔄 Load expected rooms from Firebase
 @st.cache_data(ttl=5)
 def get_expected_rooms():
     try:
@@ -43,10 +43,22 @@ def get_expected_rooms():
             return set(response.json())
         return set()
     except Exception as e:
-        st.error(f"Failed to load room list from Firebase: {e}")
+        st.error(f"Failed to load room list: {e}")
         return set()
 
-# Upload room list (admin only)
+# 🔄 Load check-ins from Firebase
+@st.cache_data(ttl=3)
+def get_checked_in_rooms():
+    try:
+        response = requests.get(f"{FIREBASE_URL}/checkins.json")
+        if response.status_code == 200 and response.json():
+            return set(response.json())
+        return set()
+    except Exception as e:
+        st.error(f"Failed to load check-ins: {e}")
+        return set()
+
+# ✅ Upload expected rooms (admin only)
 if admin_mode:
     uploaded_file = st.file_uploader("Upload expected_rooms.txt", type="txt")
     if uploaded_file:
@@ -55,7 +67,6 @@ if admin_mode:
                 line.strip() for line in uploaded_file.getvalue().decode("utf-8").splitlines()
                 if line.strip().isdigit() and 100 <= int(line.strip()) <= 639
             }, key=int)
-
             response = requests.put(f"{FIREBASE_URL}/rooms.json", json=room_list)
             if response.status_code == 200:
                 st.success(f"{len(room_list)} rooms uploaded to Firebase.")
@@ -64,14 +75,11 @@ if admin_mode:
         except Exception as e:
             st.error(f"Upload error: {e}")
 
-# Read latest room list
+# 🔄 Always use latest room/check-in data
 expected_rooms = get_expected_rooms()
+checked_in = get_checked_in_rooms()
 
-# Local session check-in storage
-if "checked_in" not in st.session_state:
-    st.session_state.checked_in = set()
-
-# Guest check-in
+# ✅ Guest Check-In
 if expected_rooms:
     st.subheader("🎫 Guest Check-In")
     room_input = st.text_input("Enter your room number:", placeholder="e.g. 215")
@@ -82,30 +90,33 @@ if expected_rooms:
             st.error("Please enter a valid room number.")
         elif int(room) < 100 or int(room) > 639:
             st.error("Room number out of range.")
-        elif room in st.session_state.checked_in:
+        elif room in checked_in:
             st.info(f"Room {room} is already checked in. Enjoy your breakfast! 🥐")
         elif room in expected_rooms:
-            st.session_state.checked_in.add(room)
-            st.success(f"✅ Room {room} checked in. Bon appétit!")
+            updated_list = list(checked_in) + [room]
+            response = requests.put(f"{FIREBASE_URL}/checkins.json", json=sorted(updated_list))
+            if response.status_code == 200:
+                st.success(f"✅ Room {room} checked in. Bon appétit!")
+            else:
+                st.error("❌ Failed to update check-in list.")
         else:
             st.error("Room not found on today’s list. Please speak to staff.")
 else:
-    st.warning("Room list not uploaded yet. Please upload it from the admin PC.")
+    st.warning("Room list not uploaded yet. Please contact staff.")
 
-# Admin view: live floor layout
+# 🧾 Admin Overview
 if admin_mode and expected_rooms:
     st.divider()
     st.subheader("📊 Live Breakfast Overview")
 
-    checked = st.session_state.checked_in
-    remaining = expected_rooms - checked
+    remaining = expected_rooms - checked_in
 
     st.markdown(f"""
-    ✅ **Checked-in:** {len(checked)} / {len(expected_rooms)}  
+    ✅ **Checked-in:** {len(checked_in)} / {len(expected_rooms)}  
     🔲 **Remaining:** {len(remaining)}  
     """)
 
-    # Floor column layout
+    # Grouped floor layout
     floor_ranges = {
         "100–199": range(100, 200),
         "200–299": range(200, 300),
@@ -121,7 +132,7 @@ if admin_mode and expected_rooms:
         for room in room_range:
             room_str = str(room)
             if room_str in expected_rooms:
-                if room_str in checked:
+                if room_str in checked_in:
                     col.markdown(f"<div class='room-box checked'>✅ {room_str}</div>", unsafe_allow_html=True)
                 else:
                     col.markdown(f"<div class='room-box pending'>🔲 {room_str}</div>", unsafe_allow_html=True)
