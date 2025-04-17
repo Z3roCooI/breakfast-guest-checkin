@@ -111,7 +111,7 @@ unexpected_rooms = get_unexpected_rooms()
 
 # Guest Check-In
 if expected_rooms or manual_rooms:
-    st.subheader("🎫 Guest Check-In")
+    st.subheader("🎫 Enter room number")
     room_input = st.number_input(
         label="Enter your room number:",
         min_value=100,
@@ -119,7 +119,7 @@ if expected_rooms or manual_rooms:
         step=1,
         format="%d",
         label_visibility="collapsed",
-        placeholder="Enter room number"
+       
     )
 
     if st.button("✅ Check In"):
