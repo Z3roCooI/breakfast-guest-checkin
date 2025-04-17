@@ -24,7 +24,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Admin access via ?admin=1
+# Admin access
 ADMIN_PIN = "1234"
 query_params = st.query_params
 admin_requested = query_params.get("admin", ["0"])[0] == "1"
@@ -32,14 +32,14 @@ admin_mode = False
 
 if admin_requested:
     with st.expander("🔐 Admin Access"):
-        entered_pin = st.text_input("Enter admin PIN:", type="password")
+        entered_pin = st.text_input("Enter admin PIN:", type="password", label_visibility="collapsed", placeholder="Enter Admin PIN")
         if entered_pin == ADMIN_PIN:
             st.success("Admin access granted.")
             admin_mode = True
         elif entered_pin:
             st.error("Incorrect PIN")
 
-# Firebase loaders
+# Load from Firebase
 @st.cache_data(ttl=5)
 def get_expected_rooms():
     try:
@@ -62,7 +62,7 @@ def get_checked_in_rooms():
         st.error(f"Failed to load check-ins: {e}")
         return set()
 
-# Admin upload
+# Admin: Upload room list
 if admin_mode:
     uploaded_file = st.file_uploader("Upload expected_rooms.txt", type="txt")
     if uploaded_file:
@@ -74,12 +74,29 @@ if admin_mode:
             response = requests.put(f"{FIREBASE_URL}/rooms.json", json=room_list)
             if response.status_code == 200:
                 st.success(f"{len(room_list)} rooms uploaded to Firebase.")
+                st.cache_data.clear()
+                st.rerun()
             else:
                 st.error("Failed to upload to Firebase.")
         except Exception as e:
             st.error(f"Upload error: {e}")
 
-# Load room and check-in data
+    # ❌ Full Reset
+    st.markdown("---")
+    if st.button("❌ Full Reset (Rooms + Check-ins)"):
+        try:
+            r1 = requests.delete(f"{FIREBASE_URL}/rooms.json")
+            r2 = requests.delete(f"{FIREBASE_URL}/checkins.json")
+            if r1.status_code == 200 and r2.status_code == 200:
+                st.success("✅ All data reset successfully.")
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                st.error("❌ Failed to reset data.")
+        except Exception as e:
+            st.error(f"Reset error: {e}")
+
+# Load room/check-in data
 expected_rooms = get_expected_rooms()
 checked_in = get_checked_in_rooms()
 
@@ -87,12 +104,13 @@ checked_in = get_checked_in_rooms()
 if expected_rooms:
     st.subheader("🎫 Guest Check-In")
     room_input = st.number_input(
-        "Enter your room number:",
+        label="Enter your room number:",
         min_value=100,
         max_value=639,
         step=1,
         format="%d",
-        placeholder="Room number",
+        label_visibility="collapsed",
+        placeholder="Enter room number"
     )
 
     if st.button("✅ Check In"):
@@ -104,6 +122,8 @@ if expected_rooms:
             response = requests.put(f"{FIREBASE_URL}/checkins.json", json=sorted(updated_list))
             if response.status_code == 200:
                 st.success(f"✅ Room {room} checked in. Bon appétit!")
+                st.cache_data.clear()
+                st.rerun()
             else:
                 st.error("❌ Failed to update check-in list.")
         else:
@@ -111,31 +131,31 @@ if expected_rooms:
 else:
     st.warning("Room list not uploaded yet. Please contact staff.")
 
-# 🔁 Admin Refresh Options
+# 🔁 Refresh controls for admin
 if admin_mode:
     col1, col2 = st.columns([1, 2])
     with col1:
         if st.button("🔄 Refresh Now"):
+            st.cache_data.clear()
             st.rerun()
     with col2:
         auto_refresh = st.checkbox("⏱ Auto-refresh every 10 seconds")
         if auto_refresh:
             time.sleep(10)
+            st.cache_data.clear()
             st.rerun()
 
-# 🧾 Admin Overview
+# 📊 Admin Overview
 if admin_mode and expected_rooms:
     st.divider()
     st.subheader("📊 Live Breakfast Overview")
 
     remaining = expected_rooms - checked_in
-
     st.markdown(f"""
     ✅ **Checked-in:** {len(checked_in)} / {len(expected_rooms)}  
     🔲 **Remaining:** {len(remaining)}  
     """)
 
-    # Group into columns by floor
     floor_ranges = {
         "100–199": range(100, 200),
         "200–299": range(200, 300),
