@@ -136,7 +136,7 @@ if expected_rooms or manual_rooms:
         else:
             updated_unexpected = list(unexpected_rooms) + [room]
             requests.put(f"{FIREBASE_URL}/unexpected_rooms.json", json=sorted(set(updated_unexpected)))
-            st.warning("Oopsie! We didn’t find your room. Please continue with the breakfast and we’ll sort it out. 🥐")
+            st.warning("Oopsie! We didn’t find your room on the list. Please continue with the breakfast while we sort it out. 🥐")
 else:
     st.warning("Room list not available yet.")
 
