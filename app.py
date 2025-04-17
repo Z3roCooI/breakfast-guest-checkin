@@ -20,6 +20,7 @@ st.markdown("""
         .room-box.checked {color: green;}
         .room-box.pending {color: gray;}
         .room-box.manual {color: blue;}
+        .room-box.unexpected {color: red;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -67,6 +68,17 @@ def get_manual_rooms():
     except:
         return set()
 
+@st.cache_data(ttl=3)
+def get_unexpected_rooms():
+    try:
+        response = requests.get(f"{FIREBASE_URL}/unexpected_rooms.json")
+        if response.status_code == 200 and response.json():
+            return set(response.json())
+        return set()
+    except:
+        return set()
+
+# Admin: Upload + reset
 if admin_mode:
     uploaded_file = st.file_uploader("Upload expected_rooms.txt", type="txt")
     if uploaded_file:
@@ -82,20 +94,22 @@ if admin_mode:
         except Exception as e:
             st.error(f"Upload error: {e}")
 
-    st.markdown("---")
     if st.button("❌ Full Reset (Rooms + Check-ins)"):
         requests.delete(f"{FIREBASE_URL}/rooms.json")
         requests.delete(f"{FIREBASE_URL}/checkins.json")
         requests.delete(f"{FIREBASE_URL}/manual_rooms.json")
+        requests.delete(f"{FIREBASE_URL}/unexpected_rooms.json")
         st.success("✅ All data reset.")
         st.cache_data.clear()
         st.rerun()
 
+# Load all data
 expected_rooms = get_expected_rooms()
 checked_in = get_checked_in_rooms()
 manual_rooms = get_manual_rooms()
+unexpected_rooms = get_unexpected_rooms()
 
-# ✅ Guest Check-In
+# Guest Check-In
 if expected_rooms or manual_rooms:
     st.subheader("🎫 Guest Check-In")
     room_input = st.number_input(
@@ -112,21 +126,22 @@ if expected_rooms or manual_rooms:
         room = str(int(room_input))
         all_valid_rooms = expected_rooms.union(manual_rooms)
         if room in checked_in:
-            st.info(f"Room {room} is already checked in.")
+            st.info(f"Room {room} is already checked in. Enjoy your breakfast! 🥐")
         elif room in all_valid_rooms:
             updated_list = list(checked_in) + [room]
             requests.put(f"{FIREBASE_URL}/checkins.json", json=sorted(updated_list))
-            st.success(f"✅ Room {room} checked in.")
+            st.success(f"✅ Room {room} checked in. Bon appétit!")
             st.cache_data.clear()
             st.rerun()
         else:
-            st.error("Room not on today's list. Please speak to staff.")
+            updated_unexpected = list(unexpected_rooms) + [room]
+            requests.put(f"{FIREBASE_URL}/unexpected_rooms.json", json=sorted(set(updated_unexpected)))
+            st.warning("Oopsie! We didn’t find your room. Please continue with the breakfast and we’ll sort it out. 🥐")
 else:
     st.warning("Room list not available yet.")
 
-# 🔧 Admin Manual Room Add
+# Manual Add
 if admin_mode:
-    st.markdown("---")
     st.subheader("🔧 Add Extra Room (Manual Entry)")
     manual_input = st.number_input("Add room not in original list", min_value=100, max_value=639, step=1, key="manual_room_add")
     if st.button("➕ Add Room Manually"):
@@ -139,14 +154,16 @@ if admin_mode:
         else:
             st.info("Room already added manually.")
 
-# 🧾 Admin Overview
-if admin_mode and (expected_rooms or manual_rooms):
-    st.divider()
-    st.subheader("📊 Live Breakfast Overview")
+# Admin Overview
+if admin_mode:
+    if st.button("🔄 Refresh Now"):
+        st.cache_data.clear()
+        st.rerun()
 
     all_rooms = expected_rooms.union(manual_rooms)
     remaining = all_rooms - checked_in
 
+    st.subheader("📊 Live Breakfast Overview")
     st.markdown(f"""
     ✅ **Checked-in:** {len(checked_in)} / {len(all_rooms)}  
     🔲 **Remaining:** {len(remaining)}  
@@ -173,3 +190,9 @@ if admin_mode and (expected_rooms or manual_rooms):
                     col.markdown(f"<div class='room-box manual'>🔧 {room_str}</div>", unsafe_allow_html=True)
                 else:
                     col.markdown(f"<div class='room-box pending'>🔲 {room_str}</div>", unsafe_allow_html=True)
+
+    if unexpected_rooms:
+        st.divider()
+        st.subheader("⚠️ Unexpected Check-Ins")
+        for room in sorted(unexpected_rooms):
+            st.markdown(f"<div class='room-box unexpected'>⚠️ Room {room}</div>", unsafe_allow_html=True)
