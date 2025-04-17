@@ -37,9 +37,11 @@ if admin_requested:
 # Load expected rooms from Firebase
 @st.cache_data(ttl=5)
 def get_expected_rooms():
-    try:
-        response = requests.get(f"{FIREBASE_URL}/rooms.json")
-        if response.status_code == 200 and response.json():
-            return set(response.json())
-        return set()
-    except Exception as e:
+  try:
+    response = requests.put(f"{FIREBASE_URL}/rooms.json", json=room_list)
+    if response.status_code == 200:
+        st.success(f"{len(room_list)} rooms uploaded to Firebase.")
+    else:
+        st.error("Failed to upload to Firebase.")
+except Exception as e:
+    st.error(f"Upload error: {e}")
