@@ -3,19 +3,21 @@ import streamlit as st
 st.set_page_config(page_title="Breakfast Check-In", page_icon="🥐", layout="centered")
 st.markdown("<h1 style='text-align: center;'>🍳 Breakfast Check-In</h1>", unsafe_allow_html=True)
 
-# Style for tablet friendliness
+# Style
 st.markdown("""
     <style>
         #MainMenu, footer {visibility: hidden;}
         .stTextInput > div > div > input {font-size: 28px; height: 50px;}
         .stButton button {font-size: 24px; padding: 12px;}
+        .room-box {font-size: 16px; padding: 4px;}
+        .room-box.checked {color: green;}
+        .room-box.pending {color: gray;}
     </style>
 """, unsafe_allow_html=True)
 
-# Admin PIN and toggle based on URL
+# Admin PIN and URL toggle
 ADMIN_PIN = "1234"
-
-query_params = st.query_params  # ✅ Updated usage
+query_params = st.query_params
 admin_requested = query_params.get("admin", ["0"])[0] == "1"
 admin_mode = False
 
@@ -28,14 +30,14 @@ if admin_requested:
         elif entered_pin:
             st.error("Incorrect PIN")
 
-# Use cache_resource to persist room list between users
+# Shared room list using cache_resource
 @st.cache_resource
 def get_expected_rooms():
     return set()
 
 expected_rooms = get_expected_rooms()
 
-# Admin: upload today's room list
+# Upload file (admin only)
 if admin_mode:
     uploaded_file = st.file_uploader("Upload expected_rooms.txt", type="txt")
     if uploaded_file:
@@ -45,13 +47,13 @@ if admin_mode:
         )
         expected_rooms.clear()
         expected_rooms.update(room_list)
-        st.success(f"{len(expected_rooms)} rooms loaded successfully.")
+        st.success(f"{len(expected_rooms)} rooms loaded.")
 
-# Track check-ins per session (guest mode)
+# Track check-ins
 if "checked_in" not in st.session_state:
     st.session_state.checked_in = set()
 
-# Check-in UI (guests)
+# Guest check-in
 if expected_rooms:
     st.subheader("🎫 Guest Check-In")
     room_input = st.text_input("Enter your room number:", placeholder="e.g. 215")
@@ -72,8 +74,24 @@ if expected_rooms:
 else:
     st.warning("Room list not uploaded yet. Please contact staff.")
 
-# Admin: show checked-in list
-if admin_mode:
-    with st.expander("📋 View Checked-In Rooms"):
-        checked = sorted(st.session_state.checked_in)
-        st.write(", ".join(checked) if checked else "None yet.")
+# ✅ ADMIN PANEL: Live Room Overview
+if admin_mode and expected_rooms:
+    st.divider()
+    st.subheader("📊 Live Breakfast Overview")
+
+    checked = st.session_state.checked_in
+    remaining = expected_rooms - checked
+
+    st.markdown(f"""
+    ✅ **Checked-in:** {len(checked)} / {len(expected_rooms)}  
+    🔲 **Remaining:** {len(remaining)}  
+    """)
+
+    # Scrollable view of all rooms
+    with st.expander("📋 Full Room Status"):
+        all_rooms = sorted(expected_rooms, key=int)
+        for room in all_rooms:
+            if room in checked:
+                st.markdown(f"<div class='room-box checked'>✅ Room {room}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='room-box pending'>🔲 Room {room}</div>", unsafe_allow_html=True)
