@@ -1,17 +1,22 @@
 import streamlit as st
 import requests
+import time
 
 st.set_page_config(page_title="Breakfast Check-In", page_icon="🥐", layout="wide")
 
 # Firebase Realtime DB URL
 FIREBASE_URL = "https://breakfast-50e37-default-rtdb.europe-west1.firebasedatabase.app"
 
-# Style and layout
+# Title & styles
 st.markdown("""
     <h1 style='text-align: center;'>🍳 Breakfast Check-In</h1>
     <style>
         #MainMenu, footer {visibility: hidden;}
-        .stTextInput > div > div > input {font-size: 28px; height: 50px;}
+        .stTextInput > div > div > input,
+        .stNumberInput input {
+            font-size: 28px;
+            height: 50px;
+        }
         .stButton button {font-size: 24px; padding: 12px;}
         .room-box {font-size: 16px; padding: 4px;}
         .room-box.checked {color: green;}
@@ -19,7 +24,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Admin panel toggle
+# Admin access via ?admin=1
 ADMIN_PIN = "1234"
 query_params = st.query_params
 admin_requested = query_params.get("admin", ["0"])[0] == "1"
@@ -34,7 +39,7 @@ if admin_requested:
         elif entered_pin:
             st.error("Incorrect PIN")
 
-# 🔄 Load expected rooms from Firebase
+# Firebase loaders
 @st.cache_data(ttl=5)
 def get_expected_rooms():
     try:
@@ -46,7 +51,6 @@ def get_expected_rooms():
         st.error(f"Failed to load room list: {e}")
         return set()
 
-# 🔄 Load check-ins from Firebase
 @st.cache_data(ttl=3)
 def get_checked_in_rooms():
     try:
@@ -58,7 +62,7 @@ def get_checked_in_rooms():
         st.error(f"Failed to load check-ins: {e}")
         return set()
 
-# ✅ Upload expected rooms (admin only)
+# Admin upload
 if admin_mode:
     uploaded_file = st.file_uploader("Upload expected_rooms.txt", type="txt")
     if uploaded_file:
@@ -75,22 +79,25 @@ if admin_mode:
         except Exception as e:
             st.error(f"Upload error: {e}")
 
-# 🔄 Always use latest room/check-in data
+# Load room and check-in data
 expected_rooms = get_expected_rooms()
 checked_in = get_checked_in_rooms()
 
 # ✅ Guest Check-In
 if expected_rooms:
     st.subheader("🎫 Guest Check-In")
-    room_input = st.text_input("Enter your room number:", placeholder="e.g. 215")
+    room_input = st.number_input(
+        "Enter your room number:",
+        min_value=100,
+        max_value=639,
+        step=1,
+        format="%d",
+        placeholder="Room number",
+    )
 
     if st.button("✅ Check In"):
-        room = room_input.strip()
-        if not room.isdigit():
-            st.error("Please enter a valid room number.")
-        elif int(room) < 100 or int(room) > 639:
-            st.error("Room number out of range.")
-        elif room in checked_in:
+        room = str(int(room_input))
+        if room in checked_in:
             st.info(f"Room {room} is already checked in. Enjoy your breakfast! 🥐")
         elif room in expected_rooms:
             updated_list = list(checked_in) + [room]
@@ -103,19 +110,19 @@ if expected_rooms:
             st.error("Room not found on today’s list. Please speak to staff.")
 else:
     st.warning("Room list not uploaded yet. Please contact staff.")
-# 🔁 Optional manual + auto refresh for admin
+
+# 🔁 Admin Refresh Options
 if admin_mode:
     col1, col2 = st.columns([1, 2])
     with col1:
         if st.button("🔄 Refresh Now"):
             st.rerun()
     with col2:
-        auto_refresh = st.checkbox("Auto-refresh every 10 seconds")
+        auto_refresh = st.checkbox("⏱ Auto-refresh every 10 seconds")
+        if auto_refresh:
+            time.sleep(10)
+            st.rerun()
 
-    if auto_refresh:
-        import time
-        time.sleep(10)
-        st.rerun()
 # 🧾 Admin Overview
 if admin_mode and expected_rooms:
     st.divider()
@@ -128,7 +135,7 @@ if admin_mode and expected_rooms:
     🔲 **Remaining:** {len(remaining)}  
     """)
 
-    # Grouped floor layout
+    # Group into columns by floor
     floor_ranges = {
         "100–199": range(100, 200),
         "200–299": range(200, 300),
