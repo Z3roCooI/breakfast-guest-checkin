@@ -1,9 +1,10 @@
 import streamlit as st
+from urllib.parse import parse_qs
 
 st.set_page_config(page_title="Breakfast Check-In", page_icon="🥐", layout="centered")
 st.markdown("<h1 style='text-align: center;'>🍳 Breakfast Check-In</h1>", unsafe_allow_html=True)
 
-# Style adjustments for tablet UX
+# Style for tablet friendliness
 st.markdown("""
     <style>
         #MainMenu, footer {visibility: hidden;}
@@ -12,27 +13,30 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Admin PIN
+# Admin PIN and toggle based on URL
 ADMIN_PIN = "1234"
+
+query_params = st.experimental_get_query_params()
+admin_requested = query_params.get("admin", ["0"])[0] == "1"
 admin_mode = False
 
-# This singleton stores uploaded room list
+if admin_requested:
+    with st.expander("🔐 Admin Access"):
+        entered_pin = st.text_input("Enter admin PIN:", type="password")
+        if entered_pin == ADMIN_PIN:
+            st.success("Admin access granted.")
+            admin_mode = True
+        elif entered_pin:
+            st.error("Incorrect PIN")
+
+# Use cache_resource to persist room list between users
 @st.cache_resource
 def get_expected_rooms():
     return set()
 
 expected_rooms = get_expected_rooms()
 
-# Admin access
-with st.expander("🔐 Admin Access"):
-    entered_pin = st.text_input("Enter admin PIN:", type="password")
-    if entered_pin == ADMIN_PIN:
-        st.success("Admin access granted.")
-        admin_mode = True
-    elif entered_pin:
-        st.error("Incorrect PIN.")
-
-# Upload file (only staff)
+# Admin: upload today's room list
 if admin_mode:
     uploaded_file = st.file_uploader("Upload expected_rooms.txt", type="txt")
     if uploaded_file:
@@ -44,11 +48,11 @@ if admin_mode:
         expected_rooms.update(room_list)
         st.success(f"{len(expected_rooms)} rooms loaded successfully.")
 
-# Track check-ins globally
+# Track check-ins per session (guest mode)
 if "checked_in" not in st.session_state:
     st.session_state.checked_in = set()
 
-# Guest check-in area
+# Check-in UI (guests)
 if expected_rooms:
     st.subheader("🎫 Guest Check-In")
     room_input = st.text_input("Enter your room number:", placeholder="e.g. 215")
@@ -69,7 +73,8 @@ if expected_rooms:
 else:
     st.warning("Room list not uploaded yet. Please contact staff.")
 
-# Admin-only: view checked-in list
+# Admin: show checked-in list
 if admin_mode:
     with st.expander("📋 View Checked-In Rooms"):
         checked = sorted(st.session_state.checked_in)
+        st.write(", ".join(checked) if checked else "None yet.")
